@@ -4,12 +4,23 @@ using System.Threading.Tasks;
 
 class ResourceIntensiveApp
 {
+    private const long ChunkSize = 512L * 1024 * 1024; // 512 MB
+    private const long TotalMemory = 8L * 1024 * 1024 * 1024; // 8 GB
+
     static void Main()
     {
         int processorCount = Environment.ProcessorCount;
 
-        // Start threads to consume CPU
-        Task[] cpuTasks = new Task[processorCount];
+        Task[] cpuTasks = CreateCpuTasks(processorCount);
+        Task memoryTask = AllocateMemory();
+
+        Task.WaitAll(cpuTasks);
+        memoryTask.Wait();
+    }
+
+    private static Task[] CreateCpuTasks(int processorCount)
+    {
+        var cpuTasks = new Task[processorCount];
         for (int i = 0; i < processorCount; i++)
         {
             cpuTasks[i] = Task.Run(() =>
@@ -20,52 +31,55 @@ class ResourceIntensiveApp
                 }
             });
         }
+        return cpuTasks;
+    }
 
-        // Start a thread to consume a large amount of memory
-        Task memoryTask = Task.Run(() =>
+    private static Task AllocateMemory()
+    {
+        return Task.Run(() =>
         {
             try
             {
                 Console.WriteLine("Attempting to allocate 8GB of memory...");
 
-                // Divide the memory allocation into smaller chunks
-                const long chunkSize = 1024L * 1024 * 512; // 512 MB
-                long totalMemory = 8L * 1024 * 1024 * 1024; // 8 GB
-                int numberOfChunks = (int)(totalMemory / chunkSize);
-                byte[][] memoryChunks = new byte[numberOfChunks][];
+                int numberOfChunks = (int)(TotalMemory / ChunkSize);
+                var memoryChunks = new byte[numberOfChunks][];
 
                 for (int i = 0; i < numberOfChunks; i++)
                 {
-                    memoryChunks[i] = new byte[chunkSize];
-                    // Initialize the array to ensure the memory is allocated
-                    for (long j = 0; j < chunkSize; j++)
-                    {
-                        memoryChunks[i][j] = 1;
-                    }
+                    memoryChunks[i] = new byte[ChunkSize];
+                    InitializeMemory(memoryChunks[i]);
                 }
 
                 Console.WriteLine("Memory allocated successfully.");
 
                 // Keep the task alive to retain the memory
-                while (true)
-                {
-                    Thread.Sleep(1000);
-                }
+                KeepMemoryAllocated();
             }
             catch (OutOfMemoryException)
             {
                 Console.WriteLine("Out of memory!");
             }
-            catch (Exception e)
+            catch (Exception ex)
             {
-                Console.WriteLine(e.Message);
+                Console.WriteLine($"An error occurred: {ex.Message}");
             }
         });
+    }
 
-        // Wait for all CPU tasks to complete (they never will)
-        Task.WaitAll(cpuTasks);
+    private static void InitializeMemory(byte[] memoryChunk)
+    {
+        for (int j = 0; j < memoryChunk.Length; j++)
+        {
+            memoryChunk[j] = 1;
+        }
+    }
 
-        // Wait for the memory task (it never will)
-        memoryTask.Wait();
+    private static void KeepMemoryAllocated()
+    {
+        while (true)
+        {
+            Thread.Sleep(1000);
+        }
     }
 }
