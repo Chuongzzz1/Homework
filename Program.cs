@@ -1,9 +1,15 @@
 ﻿using System;
+using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 
 public class ResourceIntensiveApp
 {
+    public const int SLEEP_TIME = 1000;
+    public const int MEMORY_CHUNK = 1;
+    private const int BUSY_LOOP_MS = 10;
+    private const double FULL_USAGE_CPU = 1.0;
+    private const double USAGE_CPU = 0.8;
     public const long CHUNK_SIZE = 512L * 1024 * 1024; // 512 MB
     public const long TOTAL_MEMORY = 8L * 1024 * 1024 * 1024; // 8 GB
 
@@ -11,23 +17,28 @@ public class ResourceIntensiveApp
     {
         int processorCount = Environment.ProcessorCount;
 
-        Task[] cpuTasks = CreateCpuTasks(processorCount);
+        Task[] cpuTasks = CreateCpuTasks(processorCount, USAGE_CPU);
         Task memoryTask = AllocateMemory();
 
         Task.WaitAll(cpuTasks);
         memoryTask.Wait();
     }
 
-    public static Task[] CreateCpuTasks(int processorCount)
+    public static Task[] CreateCpuTasks(int processorCount, double targetCpuUsage)
     {
         var cpuTasks = new Task[processorCount];
         for (int i = 0; i < processorCount; i++)
         {
             cpuTasks[i] = Task.Run(() =>
             {
+                var stopwatch = new System.Diagnostics.Stopwatch();
+                double busyTime = BUSY_LOOP_MS * targetCpuUsage; 
+                double idleTime = BUSY_LOOP_MS * (FULL_USAGE_CPU - targetCpuUsage);
                 while (true)
                 {
-                    // Busy loop to consume CPU
+                    stopwatch.Restart();
+                    while (stopwatch.ElapsedMilliseconds < busyTime) { }
+                    Thread.Sleep((int)idleTime);
                 }
             });
         }
@@ -79,7 +90,7 @@ public class ResourceIntensiveApp
     {
         for (int j = 0; j < memoryChunk.Length; j++)
         {
-            memoryChunk[j] = 1;
+            memoryChunk[j] = MEMORY_CHUNK;
         }
     }
 
@@ -87,7 +98,7 @@ public class ResourceIntensiveApp
     {
         while (true)
         {
-            Thread.Sleep(1000);
+            Thread.Sleep(SLEEP_TIME);
         }
     }
 }
